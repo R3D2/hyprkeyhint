@@ -67,6 +67,20 @@ in
       description = "Gap in pixels from the anchored edge. Ignored when centred.";
     };
 
+    fold = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Fold runs of near-identical binds into one row, so ten workspace binds
+        read as `1…0  Workspace 1-10` and four direction binds as one line of
+        arrows. A run is only folded at three members or more.
+
+        The cost is that the exact mapping stops being spelled out: the folded
+        row implies that `0` is workspace 10 rather than saying so. Turn it off
+        for the unabridged list.
+      '';
+    };
+
     opacity = lib.mkOption {
       type = lib.types.numbers.between 0.0 1.0;
       default = 1.0;
@@ -151,6 +165,7 @@ in
             "--anchor=${cfg.anchor}"
             "--margin=${toString cfg.margin}"
             "--opacity=${toString cfg.opacity}"
+            (if cfg.fold then "--fold" else "--no-fold")
           ]
           ++ lib.optional (cfg.style != "") "--style=${config.xdg.configHome}/keyhint/style.css"
           ++ cfg.extraArgs

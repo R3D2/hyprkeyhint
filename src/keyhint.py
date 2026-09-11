@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from math import ceil
 
 import gi
 
@@ -39,6 +40,11 @@ MODIFIERS = {
 
 # Most significant first, which is the order they are said out loud.
 MODIFIER_ORDER = ("super", "ctrl", "alt", "shift")
+
+# Ordered as they read rather than as they sort, so a folded run of arrows
+# comes out as the cluster on the keyboard.
+DIRECTIONS = ("left", "up", "down", "right")
+ARROWS = {"left": "←", "up": "↑", "down": "↓", "right": "→"}
 
 # Keys whose names are too long or too cryptic to read at a glance.
 KEY_LABELS = {
@@ -89,6 +95,12 @@ window.keyhint {
   color: #000000;
   font-size: 12px;
   margin-right: 26px;
+}
+
+.keyhint-footer {
+  color: #4a4a4a;
+  font-size: 11px;
+  padding-top: 12px;
 }
 
 .keyhint-empty {
@@ -166,6 +178,101 @@ def binds_for(mask: int, raw: list[dict]) -> list[Bind]:
     return binds
 
 
+@dataclass(frozen=True)
+class Row:
+    """One printed line: either a bind, or a run of them folded together."""
+
+    keys: str
+    description: str
+    sort: tuple[int, int, str]
+
+
+def split_variant(description: str) -> tuple[str, str, object] | None:
+    """Split a description into a stem and the thing that varies across a run.
+
+    "Workspace 7" is one of ten lines that say the same thing, and so is
+    "Move window left". Both are worth one line, not four or ten.
+    """
+    words = description.split()
+    if len(words) < 2:
+        return None
+    last = words[-1].lower()
+    if last.isdigit():
+        return (" ".join(words[:-1]), "number", int(last))
+    if last in DIRECTIONS:
+        return (" ".join(words[:-1]), "direction", last)
+    return None
+
+
+def fold_runs(binds: list[Bind], minimum: int = 3) -> list[Row]:
+    """Fold runs of near-identical binds into a single row.
+
+    A third of the Super sheet was "Workspace 1" through "Workspace 10", and
+    more than half of Super+Shift was "Send window to workspace N". Reading the
+    same sentence ten times teaches nothing the first one did not.
+
+    Below `minimum` members a run is left alone: folding a pair hides as much
+    as it saves.
+    """
+    groups: dict[tuple[str, str], list[tuple[object, Bind]]] = {}
+    rows: list[Row] = []
+
+    for bind in binds:
+        parsed = split_variant(bind.description)
+        if parsed is None:
+            rows.append(Row(bind.label, bind.description, bind.sort_key))
+            continue
+        stem, kind, variant = parsed
+        groups.setdefault((stem, kind), []).append((variant, bind))
+
+    for (stem, kind), members in groups.items():
+        if len(members) < minimum:
+            rows.extend(
+                Row(bind.label, bind.description, bind.sort_key) for _, bind in members
+            )
+            continue
+
+        sort = min(bind.sort_key for _, bind in members)
+        if kind == "number":
+            members.sort(key=lambda member: member[0])
+            first, last = members[0], members[-1]
+            keys = f"{first[1].label}…{last[1].label}"
+            description = f"{stem} {first[0]}-{last[0]}"
+        else:
+            members.sort(key=lambda member: DIRECTIONS.index(member[0]))
+            keys = "".join(ARROWS[variant] for variant, _ in members)
+            description = stem
+        rows.append(Row(keys, description, sort))
+
+    rows.sort(key=lambda row: row.sort)
+    return rows
+
+
+def deeper_masks(mask: int, raw: list[dict]) -> dict[int, int]:
+    """Modifier combinations that add to this one, and how many binds each holds.
+
+    Without this the second layer is undiscoverable: holding Super says nothing
+    about there being eighteen more binds a Shift away.
+    """
+    counts: dict[int, int] = {}
+    for entry in raw:
+        other = entry.get("modmask")
+        if other is None or other == mask:
+            continue
+        if not entry.get("description") or entry.get("submap"):
+            continue
+        if other & mask == mask:
+            counts[other] = counts.get(other, 0) + 1
+    return counts
+
+
+def describe_deeper(mask: int, counts: dict[int, int]) -> str:
+    return "   ".join(
+        f"+ {describe_mask(other & ~mask)} · {count} more"
+        for other, count in sorted(counts.items())
+    )
+
+
 class Keyhint(Gtk.Application):
     def __init__(self, options: argparse.Namespace) -> None:
         super().__init__(
@@ -177,6 +284,7 @@ class Keyhint(Gtk.Application):
         self.window: Gtk.ApplicationWindow | None = None
         self.grid: Gtk.Grid | None = None
         self.title: Gtk.Label | None = None
+        self.footer: Gtk.Label | None = None
         self.monitor: Gio.FileMonitor | None = None
         self.mask = 0
         self.shown_mask: int | None = None
@@ -249,6 +357,10 @@ class Keyhint(Gtk.Application):
 
         self.grid = Gtk.Grid()
         sheet.append(self.grid)
+
+        self.footer = Gtk.Label(xalign=0)
+        self.footer.add_css_class("keyhint-footer")
+        sheet.append(self.footer)
 
         self.window.set_child(sheet)
 
@@ -325,20 +437,34 @@ class Keyhint(Gtk.Application):
         self.clear_grid()
         self.title.set_text(describe_mask(mask))
 
-        entries = binds_for(mask, self.cached_binds)
+        binds = binds_for(mask, self.cached_binds)
+        entries = (
+            fold_runs(binds)
+            if self.options.fold
+            else [Row(bind.label, bind.description, bind.sort_key) for bind in binds]
+        )
         if not entries:
             label = Gtk.Label(label="nothing bound", xalign=0)
             label.add_css_class("keyhint-empty")
             self.grid.attach(label, 0, 0, 2, 1)
         else:
-            for index, bind in enumerate(entries):
-                column, row = divmod(index, self.options.rows)
-                key = Gtk.Label(label=bind.label, xalign=0.5)
+            # --rows is a maximum, not a target: with 18 entries and a maximum
+            # of 13 a fixed split leaves 13 beside 5, so the columns are
+            # levelled once the number of them is known.
+            columns = ceil(len(entries) / self.options.rows)
+            per_column = ceil(len(entries) / columns)
+            for index, entry in enumerate(entries):
+                column, row = divmod(index, per_column)
+                key = Gtk.Label(label=entry.keys, xalign=0.5)
                 key.add_css_class("keyhint-key")
-                description = Gtk.Label(label=bind.description, xalign=0)
+                description = Gtk.Label(label=entry.description, xalign=0)
                 description.add_css_class("keyhint-description")
                 self.grid.attach(key, column * 2, row, 1, 1)
                 self.grid.attach(description, column * 2 + 1, row, 1, 1)
+
+        deeper = describe_deeper(mask, deeper_masks(mask, self.cached_binds))
+        self.footer.set_text(deeper)
+        self.footer.set_visible(bool(deeper))
 
         self.shown_mask = mask
         self.window.set_visible(True)
@@ -394,6 +520,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=48,
         metavar="PX",
         help="gap from the anchored edge, ignored when centred (default: 48)",
+    )
+    parser.add_argument(
+        "--fold",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "fold runs of near-identical binds into one row, so ten workspace "
+            "binds read as one (default: fold)"
+        ),
     )
     parser.add_argument(
         "--opacity",
