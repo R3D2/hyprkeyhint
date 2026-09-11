@@ -1,58 +1,45 @@
-# keyhint
+# keyhint — which-key for Hyprland
 
-Hold a modifier, see what it does.
+Hold a modifier and see every keybind it reaches. Let go and it disappears.
 
-keyhint lists the Hyprland binds reachable from the modifiers you are currently
-holding. Hold `Super` and the `Super` binds appear with their descriptions; add
-`Shift` and they are replaced by the `Super+Shift` ones; let go and the sheet
-disappears. The binds keep working the whole time — the sheet never takes
-keyboard focus.
+![The keyhint sheet listing the binds available on Super](docs/keyhint.png)
 
-It is the interaction Windows calls Shortcut Guide, and the one
-[which-key.nvim](https://github.com/folke/which-key.nvim) made familiar, except
-that it reveals on hold rather than on a trigger key.
+Hold `Super` and the sheet lists the `Super` binds with their descriptions. Add
+`Shift` and it swaps to the `Super+Shift` layer. The sheet never takes keyboard
+focus, so the binds keep working while you read them.
 
-![keyhint showing the binds on Super](docs/keyhint.png)
+![The same sheet after adding Shift](docs/keyhint-shift.png)
 
-Add `Shift` and the sheet is replaced by that layer, folded down to what is
-actually different about it:
+Runs of similar binds are folded into one line, so ten workspace binds read as
+`1…0  Workspace 1-10` instead of filling the sheet. The footer names the other
+layers and how many binds each one holds.
 
-![keyhint showing the binds on Super and Shift](docs/keyhint-shift.png)
+## Requirements
 
-## How it differs from what already exists
+- **Hyprland with the Lua config provider.** The compositor half is a Lua file
+  that Hyprland loads. Tested on 0.56.2; it needs `hl.on` and
+  `hl.is_key_down`, so a `hyprland.conf` setup will not work.
+- **`hyprctl` on `PATH`** at runtime. keyhint reads the bind list from the
+  running compositor rather than from a config file.
+- **Binds that carry descriptions.** A bind without one is skipped. See
+  [Describing your binds](#describing-your-binds).
 
-| | trigger | keyboard |
-| --- | --- | --- |
-| [HyprHelp](https://github.com/Yosh145/HyprHelp) | a keybind | — |
-| [hypr-binds](https://github.com/hyprland-community/hypr-binds) | a launcher | takes it |
-| [wlr-which-key](https://github.com/MaxVerevkin/wlr-which-key) | a keybind, then modal | takes it |
-| keyhint | holding the modifier | never takes it |
-
-The cheatsheet tools also parse `hyprland.conf` for annotations in comments.
-keyhint asks the running compositor instead, via `hyprctl binds -j`, so it works
-with the Lua config provider and stays correct across `hyprctl keyword` and
-reloads.
-
-## It needs no privileges
-
-The obvious way to know which modifiers are held is to read `/dev/input`. That
-requires membership of the `input` group, which lets **every** process running
-as you read **every** keystroke on the machine, passwords included. That is a
-steep price for a hint overlay.
-
-keyhint instead runs a small Lua file inside Hyprland's own VM and asks the
-compositor, which already has the state. It looks at nothing but whether the
-eight modifier keys are down; no other keycode is read, stored or published.
+GTK 4 and the layer-shell library come with the package.
 
 ## Install
 
-### Flake
+### Flake with home-manager
 
 ```nix
 {
   inputs.keyhint.url = "github:R3D2/keyhint";
+}
+```
 
-  # In your home-manager configuration:
+Then in your home-manager configuration:
+
+```nix
+{
   imports = [ inputs.keyhint.homeModules.default ];
   nixpkgs.overlays = [ inputs.keyhint.overlays.default ];
 
@@ -60,99 +47,184 @@ eight modifier keys are down; no other keycode is read, stored or published.
 }
 ```
 
-The module reads its default package from `pkgs.keyhint`, so either apply the
-overlay as above or set `services.keyhint.package` yourself.
+That installs the package, loads the Lua half through
+`wayland.windowManager.hyprland.extraLuaFiles`, and starts a user service with
+your graphical session. The module takes its default package from
+`pkgs.keyhint`, so either apply the overlay or set `services.keyhint.package`.
 
-With `wayland.windowManager.hyprland` enabled and `configType = "lua"`, the
-module wires up both halves. Otherwise it installs the overlay and tells you
-the one line to add to your Hyprland config.
+### Flake, package only
 
-### Without a flake
+```
+nix run github:R3D2/keyhint
+```
+
+You still have to load the Lua half, as below.
+
+### Without flakes
+
+Build it:
 
 ```
 nix-build -E 'with import <nixpkgs> {}; callPackage ./package.nix {}'
 ```
 
-Then load the Lua half from your Hyprland config:
+Copy the Lua half next to your Hyprland config and load it:
 
-```lua
-require("keyhint")   -- after copying share/keyhint/keyhint.lua next to it
+```
+install -Dm644 result/share/keyhint/keyhint.lua ~/.config/hypr/keyhint.lua
 ```
 
-and run `keyhint` from your session.
+```lua
+-- in ~/.config/hypr/hyprland.lua
+require("keyhint")
+```
 
-## Binds need descriptions
+Then run `result/bin/keyhint` from your session. A user unit is the tidy way:
 
-keyhint shows a bind only if it has a description, because a dispatcher and its
-arguments are not an explanation. With the Lua provider:
+```ini
+[Unit]
+Description=Keybind sheet for the modifiers being held
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+ExecStart=/path/to/result/bin/keyhint --anchor=bottom
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
+```
+
+## Describing your binds
+
+keyhint shows a bind only if it carries a description, because a dispatcher and
+its arguments do not explain anything:
 
 ```lua
 hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"), { description = "Terminal" })
 ```
 
-With `hyprland.conf`, use `bindd`:
+Hyprland hands that text back through `hyprctl binds -j`, which is where
+keyhint reads it. Nothing parses your config file.
+
+## Checking it works
+
+Hold `Super` for a second. If no sheet appears:
 
 ```
-bindd = SUPER, Return, Terminal, exec, kitty
+# Is the drawing half running?
+systemctl --user status keyhint
+
+# Is the compositor half publishing? This changes while you hold Super.
+watch -n0.2 cat "$XDG_RUNTIME_DIR/keyhint.mask"
+
+# Do your binds have descriptions? Zero here means the sheet has nothing to
+# show, and it will say "nothing bound".
+hyprctl binds -j | grep -c '"has_description": true'
 ```
 
-Either way the text comes back out of `hyprctl binds -j`, which is what keyhint
-reads.
+A mask stuck at `0` means `require("keyhint")` never ran. Check that
+`keyhint.lua` is in `~/.config/hypr/` and that your config loads it.
 
 ## Options
 
-All of these are `services.keyhint.*`, and each maps to a command-line flag if
-you are running it yourself (`keyhint --help`).
+Every option maps to a command-line flag, so `keyhint --help` covers the
+standalone case too.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `gate` | `super` | modifier that must be held for the sheet to appear |
 | `delay` | `200` | milliseconds to hold before it appears |
-| `rowsPerColumn` | `13` | binds down a column before wrapping |
+| `rowsPerColumn` | `13` | maximum rows in a column before it wraps |
 | `anchor` | `center` | `center`, `top` or `bottom` |
 | `margin` | `48` | pixels from the anchored edge |
 | `opacity` | `1.0` | opacity of the sheet, 0.0 to 1.0 |
-| `fold` | `true` | fold runs of near-identical binds into one row |
+| `fold` | `true` | fold runs of similar binds into one row |
 | `style` | `""` | CSS appended to the built-in stylesheet |
+| `extraArgs` | `[ ]` | extra command-line arguments |
 
-If you hold the gate modifier to drag windows, consider
-`anchor = "bottom"`: a centred sheet lands on top of whatever is being dragged.
-
-Style hooks are `keyhint-sheet`, `keyhint-title`, `keyhint-key`,
-`keyhint-description`, `keyhint-footer` and `keyhint-empty`.
+Set `anchor = "bottom"` if you also hold the gate modifier to drag windows. A
+centred sheet lands on top of whatever you are dragging.
 
 ### Folding
 
-Ten binds that say `Workspace 1` through `Workspace 10` teach nothing the
-first one did not, so runs of three or more are folded into a single row:
-`1…0  Workspace 1-10`, and `←↑↓→  Move window` for the four directions. A run
-is detected by a description ending in a number or a direction word.
+Ten binds that say `Workspace 1` through `Workspace 10` take ten rows to say
+one thing. Runs of three or more are folded into a single row: `1…0` for a
+numbered run, `←↑↓→` for the four directions. A run is detected by a
+description ending in a number or a direction word.
 
-It costs a little precision -- the folded row implies that `0` is workspace 10
-rather than saying so -- so `fold = false` gives the unabridged list. Column
-balancing and the footer are not affected: `rowsPerColumn` is a maximum rather
-than a target, and the columns are levelled once their number is known.
+The folded row implies that `0` is workspace 10 rather than stating it, so set
+`fold = false` for the unabridged list.
 
-## Notes from building it
+### Styling
 
-Three things about Hyprland binds are worth writing down, because each one
-looks like a working design until it is measured. All were checked against
+`style` is appended to the built-in stylesheet. The classes are
+`keyhint-sheet`, `keyhint-title`, `keyhint-key`, `keyhint-description`,
+`keyhint-footer` and `keyhint-empty`.
+
+```nix
+services.keyhint.style = ''
+  .keyhint-sheet { background: #1c1c2c; border-color: #78a0e0; }
+  .keyhint-title, .keyhint-description { color: #c0caf5; }
+'';
+```
+
+## How it works
+
+Two halves.
+
+`keyhint.lua` runs inside Hyprland's Lua VM, subscribes to
+`input.keyboard.key`, and writes the modifiers currently held to
+`$XDG_RUNTIME_DIR/keyhint.mask`.
+
+`keyhint` watches that file and draws the matching binds on a layer-shell
+surface with keyboard interactivity disabled.
+
+Reading modifier state from outside the compositor would mean reading
+`/dev/input`, which requires membership of the `input` group. Every process
+running as that user could then read every keystroke on the machine, passwords
+included. Hyprland already has the state, so keyhint asks it. No elevated
+privileges, no group membership, and the Lua half looks at nothing but the
+eight modifier keys.
+
+## Alternatives
+
+| | how you open it | where the list comes from |
+| --- | --- | --- |
+| [HyprHelp](https://github.com/Yosh145/HyprHelp) | a keybind | comments in `hyprland.conf` |
+| [hypr-binds](https://github.com/hyprland-community/hypr-binds) | a launcher | your Hyprland config |
+| [wlr-which-key](https://github.com/MaxVerevkin/wlr-which-key) | a keybind, then modal | its own YAML menu |
+| [hyprwhichkey](https://github.com/Juhan280/hyprwhichkey) | a keybind | `bindd` descriptions |
+| keyhint | holding the modifier | `hyprctl binds` |
+
+keyhint is the only one of these that reveals on hold rather than on a
+trigger. Its surface also never takes keyboard focus, so the binds stay usable
+while it is up; wlr-which-key takes the keyboard by design, being a menu you
+navigate.
+
+The cheatsheet tools read `hyprland.conf` and look for annotations in comments.
+keyhint queries the compositor, so it works with the Lua config provider and
+stays correct after `hyprctl keyword` and reloads.
+
+## Implementation notes
+
+Three properties of Hyprland binds shaped the design. All were measured against
 0.56.2 with synthetic key events.
 
-1. **A `release` bind on a modifier is suppressed if any other bind fired while
-   it was held.** This is deliberate — it is what stops a tap-to-launch bind
-   firing after `Super+Return` — but it means "hide on release" strands the
-   sheet on screen after any real use.
-2. **Autorepeat gives roughly twenty events a second while a modifier is held,
-   but the repeat belongs to the last key pressed.** Press `Shift` while
-   holding `Super` and the `Super` repeat stops for good, even after `Shift`
-   comes back up. A heartbeat built on it dies silently.
-3. **`hl.is_key_down` reports the state from before the event being handled,**
-   so the key that triggered the callback has to be applied over the top by
-   hand.
+1. A `release` bind on a modifier does not fire if another bind fired while it
+   was held. That is what stops a tap-to-launch bind firing after
+   `Super+Return`, but it also means hiding on release leaves the sheet on
+   screen after any real use.
+2. Autorepeat produces about twenty events a second while a modifier is held,
+   but the repeat belongs to the last key pressed. Press `Shift` while holding
+   `Super` and the `Super` repeat stops for good, even after `Shift` comes back
+   up. A heartbeat built on it dies silently.
+3. `hl.is_key_down` reports the state from before the event being handled, so
+   the key that triggered the callback has to be applied on top by hand.
 
-What survives is a design with no binds at all: one subscription to
-`input.keyboard.key`, which fires on both press and release.
+The result uses no binds at all: one subscription to `input.keyboard.key`,
+which fires on press and release.
 
 ## Licence
 
