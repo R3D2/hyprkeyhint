@@ -237,6 +237,11 @@ class Keyhint(Gtk.Application):
 
         sheet = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         sheet.add_css_class("keyhint-sheet")
+        # Applied to the sheet rather than to the window, and as a widget
+        # property rather than as CSS: it then covers the background, the
+        # border and the text in one go, and survives a stylesheet that
+        # replaces the background colour outright.
+        sheet.set_opacity(self.options.opacity)
 
         self.title = Gtk.Label(xalign=0)
         self.title.add_css_class("keyhint-title")
@@ -391,6 +396,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="gap from the anchored edge, ignored when centred (default: 48)",
     )
     parser.add_argument(
+        "--opacity",
+        type=float,
+        default=1.0,
+        metavar="ALPHA",
+        help="opacity of the sheet, 0.0 to 1.0 (default: 1.0)",
+    )
+    parser.add_argument(
         "--state",
         default=default_state_path(),
         metavar="PATH",
@@ -408,6 +420,9 @@ def main(argv: list[str] | None = None) -> int:
     options = parse_args(sys.argv[1:] if argv is None else argv)
     if options.delay < 0 or options.poll <= 0 or options.rows <= 0:
         print("keyhint: delay, poll and rows must be positive", file=sys.stderr)
+        return 2
+    if not 0.0 <= options.opacity <= 1.0:
+        print("keyhint: opacity must be between 0.0 and 1.0", file=sys.stderr)
         return 2
     return Keyhint(options).run(None)
 

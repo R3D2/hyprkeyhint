@@ -67,6 +67,17 @@ in
       description = "Gap in pixels from the anchored edge. Ignored when centred.";
     };
 
+    opacity = lib.mkOption {
+      type = lib.types.numbers.between 0.0 1.0;
+      default = 1.0;
+      example = 0.9;
+      description = ''
+        Opacity of the whole sheet, background, border and text together.
+        Below about 0.8 the descriptions start competing with whatever is
+        behind them, which defeats the purpose.
+      '';
+    };
+
     style = lib.mkOption {
       type = lib.types.lines;
       default = "";
@@ -139,6 +150,7 @@ in
             "--rows=${toString cfg.rowsPerColumn}"
             "--anchor=${cfg.anchor}"
             "--margin=${toString cfg.margin}"
+            "--opacity=${toString cfg.opacity}"
           ]
           ++ lib.optional (cfg.style != "") "--style=${config.xdg.configHome}/keyhint/style.css"
           ++ cfg.extraArgs

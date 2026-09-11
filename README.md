@@ -104,6 +104,7 @@ you are running it yourself (`keyhint --help`).
 | `rowsPerColumn` | `13` | binds down a column before wrapping |
 | `anchor` | `center` | `center`, `top` or `bottom` |
 | `margin` | `48` | pixels from the anchored edge |
+| `opacity` | `1.0` | opacity of the sheet, 0.0 to 1.0 |
 | `style` | `""` | CSS appended to the built-in stylesheet |
 
 If you hold the gate modifier to drag windows, consider
