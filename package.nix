@@ -9,7 +9,7 @@
 }:
 
 python3Packages.buildPythonApplication {
-  pname = "keyhint";
+  pname = "hyprkeyhint";
   version = "0.2.0";
   format = "other";
 
@@ -61,8 +61,8 @@ python3Packages.buildPythonApplication {
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 keyhint.py $out/bin/keyhint
-    install -Dm644 keyhint.lua $out/share/keyhint/keyhint.lua
+    install -Dm755 hyprkeyhint.py $out/bin/hyprkeyhint
+    install -Dm644 hyprkeyhint.lua $out/share/hyprkeyhint/hyprkeyhint.lua
 
     runHook postInstall
   '';
@@ -70,18 +70,18 @@ python3Packages.buildPythonApplication {
   meta = {
     description = "Show the Hyprland binds reachable from the modifiers you are holding";
     longDescription = ''
-      Hold a modifier and keyhint lists every bind reachable from it, with
+      Hold a modifier and hyprkeyhint lists every bind reachable from it, with
       descriptions, on a layer-shell surface that never takes keyboard focus.
       Add another modifier and the list is replaced by that combination's
       binds; let go and it disappears.
 
       Modifier state is read from inside Hyprland's own Lua VM rather than from
-      /dev/input, so keyhint needs no elevated privileges and no membership of
+      /dev/input, so hyprkeyhint needs no elevated privileges and no membership of
       the input group.
     '';
-    homepage = "https://github.com/R3D2/keyhint";
+    homepage = "https://github.com/R3D2/hyprkeyhint";
     license = lib.licenses.mit;
-    mainProgram = "keyhint";
+    mainProgram = "hyprkeyhint";
     maintainers = [ ];
     platforms = lib.platforms.linux;
   };

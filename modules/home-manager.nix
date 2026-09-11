@@ -6,14 +6,14 @@
 }:
 
 let
-  cfg = config.services.keyhint;
+  cfg = config.services.hyprkeyhint;
   hyprland = config.wayland.windowManager.hyprland;
 in
 {
-  options.services.keyhint = {
-    enable = lib.mkEnableOption "keyhint, a keybind sheet for the modifiers being held";
+  options.services.hyprkeyhint = {
+    enable = lib.mkEnableOption "hyprkeyhint, a keybind sheet for the modifiers being held";
 
-    package = lib.mkPackageOption pkgs "keyhint" { };
+    package = lib.mkPackageOption pkgs "hyprkeyhint" { };
 
     gate = lib.mkOption {
       type = lib.types.enum [
@@ -96,12 +96,12 @@ in
       type = lib.types.lines;
       default = "";
       example = ''
-        .keyhint-sheet { background: #1c1c2c; border-color: #78a0e0; }
+        .hyprkeyhint-sheet { background: #1c1c2c; border-color: #78a0e0; }
       '';
       description = ''
         CSS appended to the built-in stylesheet. The classes are
-        `keyhint-sheet`, `keyhint-title`, `keyhint-key`, `keyhint-description`
-        and `keyhint-empty`.
+        `hyprkeyhint-sheet`, `hyprkeyhint-title`, `hyprkeyhint-key`, `hyprkeyhint-description`
+        and `hyprkeyhint-empty`.
       '';
     };
 
@@ -109,7 +109,7 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [ "--poll=100" ];
-      description = "Extra arguments appended to the keyhint command line.";
+      description = "Extra arguments appended to the hyprkeyhint command line.";
     };
   };
 
@@ -118,21 +118,21 @@ in
       {
         assertion = hyprland.enable -> hyprland.configType == "lua";
         message = ''
-          services.keyhint requires the Lua config provider. Set
+          services.hyprkeyhint requires the Lua config provider. Set
           wayland.windowManager.hyprland.configType = "lua", or load
-          keyhint.lua yourself and leave the Hyprland module alone.
+          hyprkeyhint.lua yourself and leave the Hyprland module alone.
         '';
       }
     ];
 
     warnings = lib.optional (!hyprland.enable) ''
-      services.keyhint is enabled but wayland.windowManager.hyprland is not, so
-      nothing loads keyhint.lua and the sheet will never appear. Add
+      services.hyprkeyhint is enabled but wayland.windowManager.hyprland is not, so
+      nothing loads hyprkeyhint.lua and the sheet will never appear. Add
 
-          require("keyhint")
+          require("hyprkeyhint")
 
       to your Hyprland Lua config, having copied it from
-      ${cfg.package}/share/keyhint/keyhint.lua.
+      ${cfg.package}/share/hyprkeyhint/hyprkeyhint.lua.
     '';
 
     home.packages = [ cfg.package ];
@@ -141,15 +141,15 @@ in
     # from the package because extraLuaFiles distinguishes a path from literal
     # Lua text, and a store path built into a string reads as the latter.
     wayland.windowManager.hyprland.extraLuaFiles = lib.mkIf hyprland.enable {
-      keyhint = ../src/keyhint.lua;
+      hyprkeyhint = ../src/hyprkeyhint.lua;
     };
 
-    xdg.configFile."keyhint/style.css" = lib.mkIf (cfg.style != "") { text = cfg.style; };
+    xdg.configFile."hyprkeyhint/style.css" = lib.mkIf (cfg.style != "") { text = cfg.style; };
 
-    systemd.user.services.keyhint = {
+    systemd.user.services.hyprkeyhint = {
       Unit = {
         Description = "Keybind sheet for the modifiers being held";
-        Documentation = "https://github.com/R3D2/keyhint";
+        Documentation = "https://github.com/R3D2/hyprkeyhint";
         PartOf = [ "graphical-session.target" ];
         After = [ "graphical-session.target" ];
         ConditionEnvironment = "WAYLAND_DISPLAY";
@@ -167,7 +167,7 @@ in
             "--opacity=${toString cfg.opacity}"
             (if cfg.fold then "--fold" else "--no-fold")
           ]
-          ++ lib.optional (cfg.style != "") "--style=${config.xdg.configHome}/keyhint/style.css"
+          ++ lib.optional (cfg.style != "") "--style=${config.xdg.configHome}/hyprkeyhint/style.css"
           ++ cfg.extraArgs
         );
         Restart = "on-failure";

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Show the Hyprland binds reachable from the modifiers currently held.
 
-Reads the modifier mask published by keyhint.lua and draws the binds that
+Reads the modifier mask published by hyprkeyhint.lua and draws the binds that
 match it on a layer-shell surface. The surface never takes keyboard focus, so
 the binds it describes keep working while it is on screen.
 
@@ -29,7 +29,7 @@ gi.require_version("Gtk4LayerShell", "1.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 from gi.repository import Gtk4LayerShell as LayerShell  # noqa: E402
 
-# Hyprland reports modmasks using the X11 values, and keyhint.lua publishes the
+# Hyprland reports modmasks using the X11 values, and hyprkeyhint.lua publishes the
 # same, so no translation is needed anywhere.
 MODIFIERS = {
     "shift": 1,
@@ -65,23 +65,23 @@ KEY_LABELS = {
 }
 
 DEFAULT_CSS = """
-window.keyhint {
+window.hyprkeyhint {
   background: transparent;
 }
 
-.keyhint-sheet {
+.hyprkeyhint-sheet {
   background: #cccccc;
   border: 1px solid #000000;
   padding: 14px 18px;
 }
 
-.keyhint-title {
+.hyprkeyhint-title {
   color: #000000;
   font-size: 12px;
   padding-bottom: 10px;
 }
 
-.keyhint-key {
+.hyprkeyhint-key {
   background: #ffffff;
   border: 1px solid #000000;
   color: #000000;
@@ -91,19 +91,19 @@ window.keyhint {
   padding: 1px 7px;
 }
 
-.keyhint-description {
+.hyprkeyhint-description {
   color: #000000;
   font-size: 12px;
   margin-right: 26px;
 }
 
-.keyhint-footer {
+.hyprkeyhint-footer {
   color: #4a4a4a;
   font-size: 11px;
   padding-top: 12px;
 }
 
-.keyhint-empty {
+.hyprkeyhint-empty {
   color: #4a4a4a;
   font-size: 12px;
 }
@@ -112,7 +112,7 @@ window.keyhint {
 
 def default_state_path() -> str:
     runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-    return os.path.join(runtime, "keyhint.mask")
+    return os.path.join(runtime, "hyprkeyhint.mask")
 
 
 @dataclass(frozen=True)
@@ -149,7 +149,7 @@ def fetch_binds() -> list[dict]:
     running Hyprland's own copy is the correct one.
     """
     if shutil.which("hyprctl") is None:
-        print("keyhint: hyprctl not found on PATH", file=sys.stderr)
+        print("hyprkeyhint: hyprctl not found on PATH", file=sys.stderr)
         return []
     try:
         completed = subprocess.run(
@@ -161,7 +161,7 @@ def fetch_binds() -> list[dict]:
         )
         return json.loads(completed.stdout)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
-        print(f"keyhint: could not read binds: {error}", file=sys.stderr)
+        print(f"hyprkeyhint: could not read binds: {error}", file=sys.stderr)
         return []
 
 
@@ -273,10 +273,10 @@ def describe_deeper(mask: int, counts: dict[int, int]) -> str:
     )
 
 
-class Keyhint(Gtk.Application):
+class Hyprhyprkeyhint(Gtk.Application):
     def __init__(self, options: argparse.Namespace) -> None:
         super().__init__(
-            application_id="io.github.r3d2.keyhint",
+            application_id="io.github.r3d2.hyprkeyhint",
             flags=Gio.ApplicationFlags.NON_UNIQUE,
         )
         self.options = options
@@ -308,7 +308,7 @@ class Keyhint(Gtk.Application):
                 with open(self.options.style, encoding="utf-8") as handle:
                     css += handle.read()
             except OSError as error:
-                print(f"keyhint: could not read style: {error}", file=sys.stderr)
+                print(f"hyprkeyhint: could not read style: {error}", file=sys.stderr)
 
         provider = Gtk.CssProvider()
         # load_from_string arrived in GTK 4.12; load_from_data is the older
@@ -326,11 +326,11 @@ class Keyhint(Gtk.Application):
 
     def build_window(self) -> None:
         self.window = Gtk.ApplicationWindow(application=self)
-        self.window.add_css_class("keyhint")
+        self.window.add_css_class("hyprkeyhint")
 
         LayerShell.init_for_window(self.window)
         LayerShell.set_layer(self.window, LayerShell.Layer.OVERLAY)
-        LayerShell.set_namespace(self.window, "keyhint")
+        LayerShell.set_namespace(self.window, "hyprkeyhint")
         # NONE means the surface never takes the keyboard. The whole point is
         # that the binds being described stay usable while it is up.
         LayerShell.set_keyboard_mode(self.window, LayerShell.KeyboardMode.NONE)
@@ -344,7 +344,7 @@ class Keyhint(Gtk.Application):
             LayerShell.set_margin(self.window, edge, self.options.margin)
 
         sheet = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        sheet.add_css_class("keyhint-sheet")
+        sheet.add_css_class("hyprkeyhint-sheet")
         # Applied to the sheet rather than to the window, and as a widget
         # property rather than as CSS: it then covers the background, the
         # border and the text in one go, and survives a stylesheet that
@@ -352,14 +352,14 @@ class Keyhint(Gtk.Application):
         sheet.set_opacity(self.options.opacity)
 
         self.title = Gtk.Label(xalign=0)
-        self.title.add_css_class("keyhint-title")
+        self.title.add_css_class("hyprkeyhint-title")
         sheet.append(self.title)
 
         self.grid = Gtk.Grid()
         sheet.append(self.grid)
 
         self.footer = Gtk.Label(xalign=0)
-        self.footer.add_css_class("keyhint-footer")
+        self.footer.add_css_class("hyprkeyhint-footer")
         sheet.append(self.footer)
 
         self.window.set_child(sheet)
@@ -445,7 +445,7 @@ class Keyhint(Gtk.Application):
         )
         if not entries:
             label = Gtk.Label(label="nothing bound", xalign=0)
-            label.add_css_class("keyhint-empty")
+            label.add_css_class("hyprkeyhint-empty")
             self.grid.attach(label, 0, 0, 2, 1)
         else:
             # --rows is a maximum, not a target: with 18 entries and a maximum
@@ -456,9 +456,9 @@ class Keyhint(Gtk.Application):
             for index, entry in enumerate(entries):
                 column, row = divmod(index, per_column)
                 key = Gtk.Label(label=entry.keys, xalign=0.5)
-                key.add_css_class("keyhint-key")
+                key.add_css_class("hyprkeyhint-key")
                 description = Gtk.Label(label=entry.description, xalign=0)
-                description.add_css_class("keyhint-description")
+                description.add_css_class("hyprkeyhint-description")
                 self.grid.attach(key, column * 2, row, 1, 1)
                 self.grid.attach(description, column * 2 + 1, row, 1, 1)
 
@@ -479,7 +479,7 @@ class Keyhint(Gtk.Application):
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="keyhint",
+        prog="hyprkeyhint",
         description="Show the Hyprland binds reachable from the modifiers held.",
     )
     parser.add_argument(
@@ -541,7 +541,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--state",
         default=default_state_path(),
         metavar="PATH",
-        help="file keyhint.lua publishes the modifier mask to",
+        help="file hyprkeyhint.lua publishes the modifier mask to",
     )
     parser.add_argument(
         "--style",
@@ -554,12 +554,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     options = parse_args(sys.argv[1:] if argv is None else argv)
     if options.delay < 0 or options.poll <= 0 or options.rows <= 0:
-        print("keyhint: delay, poll and rows must be positive", file=sys.stderr)
+        print("hyprkeyhint: delay, poll and rows must be positive", file=sys.stderr)
         return 2
     if not 0.0 <= options.opacity <= 1.0:
-        print("keyhint: opacity must be between 0.0 and 1.0", file=sys.stderr)
+        print("hyprkeyhint: opacity must be between 0.0 and 1.0", file=sys.stderr)
         return 2
-    return Keyhint(options).run(None)
+    return Hyprhyprkeyhint(options).run(None)
 
 
 if __name__ == "__main__":

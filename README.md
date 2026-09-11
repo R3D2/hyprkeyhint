@@ -1,14 +1,14 @@
-# keyhint — which-key for Hyprland
+# hyprkeyhint — which-key for Hyprland
 
 Hold a modifier and see every keybind it reaches. Let go and it disappears.
 
-![The keyhint sheet listing the binds available on Super](docs/keyhint.png)
+![The hyprkeyhint sheet listing the binds available on Super](docs/hyprkeyhint.png)
 
 Hold `Super` and the sheet lists the `Super` binds with their descriptions. Add
 `Shift` and it swaps to the `Super+Shift` layer. The sheet never takes keyboard
 focus, so the binds keep working while you read them.
 
-![The same sheet after adding Shift](docs/keyhint-shift.png)
+![The same sheet after adding Shift](docs/hyprkeyhint-shift.png)
 
 Runs of similar binds are folded into one line, so ten workspace binds read as
 `1…0  Workspace 1-10` instead of filling the sheet. The footer names the other
@@ -19,7 +19,7 @@ layers and how many binds each one holds.
 - **Hyprland with the Lua config provider.** The compositor half is a Lua file
   that Hyprland loads. Tested on 0.56.2; it needs `hl.on` and
   `hl.is_key_down`, so a `hyprland.conf` setup will not work.
-- **`hyprctl` on `PATH`** at runtime. keyhint reads the bind list from the
+- **`hyprctl` on `PATH`** at runtime. hyprkeyhint reads the bind list from the
   running compositor rather than from a config file.
 - **Binds that carry descriptions.** A bind without one is skipped. See
   [Describing your binds](#describing-your-binds).
@@ -32,7 +32,7 @@ GTK 4 and the layer-shell library come with the package.
 
 ```nix
 {
-  inputs.keyhint.url = "github:R3D2/keyhint";
+  inputs.hyprkeyhint.url = "github:R3D2/hyprkeyhint";
 }
 ```
 
@@ -40,22 +40,22 @@ Then in your home-manager configuration:
 
 ```nix
 {
-  imports = [ inputs.keyhint.homeModules.default ];
-  nixpkgs.overlays = [ inputs.keyhint.overlays.default ];
+  imports = [ inputs.hyprkeyhint.homeModules.default ];
+  nixpkgs.overlays = [ inputs.hyprkeyhint.overlays.default ];
 
-  services.keyhint.enable = true;
+  services.hyprkeyhint.enable = true;
 }
 ```
 
 That installs the package, loads the Lua half through
 `wayland.windowManager.hyprland.extraLuaFiles`, and starts a user service with
 your graphical session. The module takes its default package from
-`pkgs.keyhint`, so either apply the overlay or set `services.keyhint.package`.
+`pkgs.hyprkeyhint`, so either apply the overlay or set `services.hyprkeyhint.package`.
 
 ### Flake, package only
 
 ```
-nix run github:R3D2/keyhint
+nix run github:R3D2/hyprkeyhint
 ```
 
 You still have to load the Lua half, as below.
@@ -71,15 +71,15 @@ nix-build -E 'with import <nixpkgs> {}; callPackage ./package.nix {}'
 Copy the Lua half next to your Hyprland config and load it:
 
 ```
-install -Dm644 result/share/keyhint/keyhint.lua ~/.config/hypr/keyhint.lua
+install -Dm644 result/share/hyprkeyhint/hyprkeyhint.lua ~/.config/hypr/hyprkeyhint.lua
 ```
 
 ```lua
 -- in ~/.config/hypr/hyprland.lua
-require("keyhint")
+require("hyprkeyhint")
 ```
 
-Then run `result/bin/keyhint` from your session. A user unit is the tidy way:
+Then run `result/bin/hyprkeyhint` from your session. A user unit is the tidy way:
 
 ```ini
 [Unit]
@@ -89,7 +89,7 @@ After=graphical-session.target
 ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
-ExecStart=/path/to/result/bin/keyhint --anchor=bottom
+ExecStart=/path/to/result/bin/hyprkeyhint --anchor=bottom
 Restart=on-failure
 
 [Install]
@@ -98,7 +98,7 @@ WantedBy=graphical-session.target
 
 ## Describing your binds
 
-keyhint shows a bind only if it carries a description, because a dispatcher and
+hyprkeyhint shows a bind only if it carries a description, because a dispatcher and
 its arguments do not explain anything:
 
 ```lua
@@ -106,7 +106,7 @@ hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"), { description = "Terminal" }
 ```
 
 Hyprland hands that text back through `hyprctl binds -j`, which is where
-keyhint reads it. Nothing parses your config file.
+hyprkeyhint reads it. Nothing parses your config file.
 
 ## Checking it works
 
@@ -114,22 +114,22 @@ Hold `Super` for a second. If no sheet appears:
 
 ```
 # Is the drawing half running?
-systemctl --user status keyhint
+systemctl --user status hyprkeyhint
 
 # Is the compositor half publishing? This changes while you hold Super.
-watch -n0.2 cat "$XDG_RUNTIME_DIR/keyhint.mask"
+watch -n0.2 cat "$XDG_RUNTIME_DIR/hyprkeyhint.mask"
 
 # Do your binds have descriptions? Zero here means the sheet has nothing to
 # show, and it will say "nothing bound".
 hyprctl binds -j | grep -c '"has_description": true'
 ```
 
-A mask stuck at `0` means `require("keyhint")` never ran. Check that
-`keyhint.lua` is in `~/.config/hypr/` and that your config loads it.
+A mask stuck at `0` means `require("hyprkeyhint")` never ran. Check that
+`hyprkeyhint.lua` is in `~/.config/hypr/` and that your config loads it.
 
 ## Options
 
-Every option maps to a command-line flag, so `keyhint --help` covers the
+Every option maps to a command-line flag, so `hyprkeyhint --help` covers the
 standalone case too.
 
 | Option | Default | Meaning |
@@ -160,13 +160,13 @@ The folded row implies that `0` is workspace 10 rather than stating it, so set
 ### Styling
 
 `style` is appended to the built-in stylesheet. The classes are
-`keyhint-sheet`, `keyhint-title`, `keyhint-key`, `keyhint-description`,
-`keyhint-footer` and `keyhint-empty`.
+`hyprkeyhint-sheet`, `hyprkeyhint-title`, `hyprkeyhint-key`, `hyprkeyhint-description`,
+`hyprkeyhint-footer` and `hyprkeyhint-empty`.
 
 ```nix
-services.keyhint.style = ''
-  .keyhint-sheet { background: #1c1c2c; border-color: #78a0e0; }
-  .keyhint-title, .keyhint-description { color: #c0caf5; }
+services.hyprkeyhint.style = ''
+  .hyprkeyhint-sheet { background: #1c1c2c; border-color: #78a0e0; }
+  .hyprkeyhint-title, .hyprkeyhint-description { color: #c0caf5; }
 '';
 ```
 
@@ -174,17 +174,17 @@ services.keyhint.style = ''
 
 Two halves.
 
-`keyhint.lua` runs inside Hyprland's Lua VM, subscribes to
+`hyprkeyhint.lua` runs inside Hyprland's Lua VM, subscribes to
 `input.keyboard.key`, and writes the modifiers currently held to
-`$XDG_RUNTIME_DIR/keyhint.mask`.
+`$XDG_RUNTIME_DIR/hyprkeyhint.mask`.
 
-`keyhint` watches that file and draws the matching binds on a layer-shell
+`hyprkeyhint` watches that file and draws the matching binds on a layer-shell
 surface with keyboard interactivity disabled.
 
 Reading modifier state from outside the compositor would mean reading
 `/dev/input`, which requires membership of the `input` group. Every process
 running as that user could then read every keystroke on the machine, passwords
-included. Hyprland already has the state, so keyhint asks it. No elevated
+included. Hyprland already has the state, so hyprkeyhint asks it. No elevated
 privileges, no group membership, and the Lua half looks at nothing but the
 eight modifier keys.
 
@@ -196,15 +196,15 @@ eight modifier keys.
 | [hypr-binds](https://github.com/hyprland-community/hypr-binds) | a launcher | your Hyprland config |
 | [wlr-which-key](https://github.com/MaxVerevkin/wlr-which-key) | a keybind, then modal | its own YAML menu |
 | [hyprwhichkey](https://github.com/Juhan280/hyprwhichkey) | a keybind | `bindd` descriptions |
-| keyhint | holding the modifier | `hyprctl binds` |
+| hyprkeyhint | holding the modifier | `hyprctl binds` |
 
-keyhint is the only one of these that reveals on hold rather than on a
+hyprkeyhint is the only one of these that reveals on hold rather than on a
 trigger. Its surface also never takes keyboard focus, so the binds stay usable
 while it is up; wlr-which-key takes the keyboard by design, being a menu you
 navigate.
 
 The cheatsheet tools read `hyprland.conf` and look for annotations in comments.
-keyhint queries the compositor, so it works with the Lua config provider and
+hyprkeyhint queries the compositor, so it works with the Lua config provider and
 stays correct after `hyprctl keyword` and reloads.
 
 ## Implementation notes

@@ -17,12 +17,12 @@
     in
     {
       packages = forAllSystems (pkgs: rec {
-        keyhint = pkgs.callPackage ./package.nix { };
-        default = keyhint;
+        hyprkeyhint = pkgs.callPackage ./package.nix { };
+        default = hyprkeyhint;
       });
 
       overlays.default = final: _prev: {
-        keyhint = final.callPackage ./package.nix { };
+        hyprkeyhint = final.callPackage ./package.nix { };
       };
 
       homeModules.default = import ./modules/home-manager.nix;
@@ -32,11 +32,11 @@
       homeManagerModules = self.homeModules;
 
       checks = forAllSystems (pkgs: {
-        inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) keyhint;
+        inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) hyprkeyhint;
 
         # --config is explicit because the check is handed ./src on its own,
         # which does not carry the ruff.toml at the repository root.
-        lint = pkgs.runCommand "keyhint-lint" { nativeBuildInputs = [ pkgs.ruff ]; } ''
+        lint = pkgs.runCommand "hyprkeyhint-lint" { nativeBuildInputs = [ pkgs.ruff ]; } ''
           ruff check --no-cache --config ${./ruff.toml} ${./src}
           ruff format --no-cache --check --diff --config ${./ruff.toml} ${./src}
           touch $out
@@ -47,7 +47,7 @@
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${pkgs.stdenv.hostPlatform.system}.keyhint ];
+          inputsFrom = [ self.packages.${pkgs.stdenv.hostPlatform.system}.hyprkeyhint ];
           packages = [
             pkgs.ruff
             pkgs.nixfmt-rfc-style
