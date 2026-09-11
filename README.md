@@ -12,6 +12,13 @@ It is the interaction Windows calls Shortcut Guide, and the one
 [which-key.nvim](https://github.com/folke/which-key.nvim) made familiar, except
 that it reveals on hold rather than on a trigger key.
 
+![keyhint showing the binds on Super](docs/keyhint.png)
+
+Add `Shift` and the sheet is replaced by that layer, folded down to what is
+actually different about it:
+
+![keyhint showing the binds on Super and Shift](docs/keyhint-shift.png)
+
 ## How it differs from what already exists
 
 | | trigger | keyboard |
@@ -105,13 +112,26 @@ you are running it yourself (`keyhint --help`).
 | `anchor` | `center` | `center`, `top` or `bottom` |
 | `margin` | `48` | pixels from the anchored edge |
 | `opacity` | `1.0` | opacity of the sheet, 0.0 to 1.0 |
+| `fold` | `true` | fold runs of near-identical binds into one row |
 | `style` | `""` | CSS appended to the built-in stylesheet |
 
 If you hold the gate modifier to drag windows, consider
 `anchor = "bottom"`: a centred sheet lands on top of whatever is being dragged.
 
 Style hooks are `keyhint-sheet`, `keyhint-title`, `keyhint-key`,
-`keyhint-description` and `keyhint-empty`.
+`keyhint-description`, `keyhint-footer` and `keyhint-empty`.
+
+### Folding
+
+Ten binds that say `Workspace 1` through `Workspace 10` teach nothing the
+first one did not, so runs of three or more are folded into a single row:
+`1…0  Workspace 1-10`, and `←↑↓→  Move window` for the four directions. A run
+is detected by a description ending in a number or a direction word.
+
+It costs a little precision -- the folded row implies that `0` is workspace 10
+rather than saying so -- so `fold = false` gives the unabridged list. Column
+balancing and the footer are not affected: `rowsPerColumn` is a maximum rather
+than a target, and the columns are levelled once their number is known.
 
 ## Notes from building it
 
