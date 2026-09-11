@@ -1,0 +1,45 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # nixpkgs-unstable moves under this, and nothing here pins a package version.
+  # A weekly run says whether it still builds before somebody's flake update
+  # finds out for them.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # Builds the package and runs ruff over the source, both of which are
+      # checks in the flake. --print-build-logs so a lint failure is readable
+      # in the log rather than a store path to go and fetch.
+      - run: nix flake check --print-build-logs
+
+  # The lock is only nixpkgs, and the check above is what says whether moving
+  # it is safe. Kept separate so a red upstream does not look like a red
+  # commit.
+  check-latest-nixpkgs:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - run: nix flake update nixpkgs
+      - run: nix flake check --print-build-logs
