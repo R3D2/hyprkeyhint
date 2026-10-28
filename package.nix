@@ -37,11 +37,15 @@ python3Packages.buildPythonApplication {
 
   # The GApps wrapper would run before the Python one and be overwritten, so
   # the arguments it collected are passed to the Python wrapper instead. This
-  # is the documented arrangement for a PyGObject application.
+  # is the documented arrangement for a PyGObject application. It has to be
+  # appended in a hook: nixpkgs now quotes each element of makeWrapperArgs, so
+  # a literal "${gappsWrapperArgs[@]}" in the list reaches the wrapper
+  # unexpanded.
   dontWrapGApps = true;
+  preFixup = ''
+    makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
+  '';
   makeWrapperArgs = [
-    "\${gappsWrapperArgs[@]}"
-
     # GTK4 layer-shell has to be loaded before libwayland-client, or it cannot
     # intercept surface creation and the window silently becomes an ordinary
     # toplevel rather than a layer surface. A compiled program satisfies that
